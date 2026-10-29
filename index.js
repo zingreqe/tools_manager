@@ -822,7 +822,7 @@ export function apply(ctx, rawConfig) {
       return {
         name: entry.name,
         label: core ? core[0] : entry.name,
-        description: core ? core[1] : clip(description, 4000) || '由其他插件提供的工具',
+        description: core ? core[1] : clip(description, 8000) || '由其他插件提供的工具',
         core: core !== undefined,
         // A tool this environment does not mount cannot be on.
         enabled: mounted && (locked.has(entry.name) || isEnabled(entry.name)),
