@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Chat Lite",
-    "description": "Sidebar page: switch between chat and normal mode and toggle every installed tool, including ones contributed by other plugins; in chat mode each web call asks for approval and understands a natural-language reply"
+    "title": "Tools Manager",
+    "description": "Sidebar page that lists every mounted tool (including ones from other plugins and MCP) with one switch each; a switched-off tool leaves the context entirely. The bundled chat mode swaps in a short prompt and asks for approval on each web call."
   }
 }

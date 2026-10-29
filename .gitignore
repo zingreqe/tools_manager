@@ -4,6 +4,7 @@ jspm_packages/
 
 # 运行时状态：可能含自定义提示词 / 个人偏好，绝不入库
 chat-lite.json
+tools_manager.json
 *.local.json
 
 # 凭据与本地环境

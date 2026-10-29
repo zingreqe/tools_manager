@@ -1,12 +1,12 @@
-# chat-lite — 轻量「聊天 + 电脑状态监控」配置。
+# tools_manager — 工具管理：一个工具一个开关，关掉的工具不进入上下文。
 #
-# 这个文件提供默认值；模式、工具开关、系统提示词都可以在侧边栏「聊天模式」
-# 页面里改，改动保存在 $DSH_HOME/chat-lite.json，并立即对所有会话生效。
-# 页面里的选择优先于这里；删掉 chat-lite.json 就回到本文件的默认值。
+# 这个文件只是默认值。侧边栏「工具管理」页里改的优先级更高，存在
+# $DSH_HOME/tools_manager.json，改完立即对所有会话生效；删掉那个文件就回到这里。
+# 聊天模式与系统提示词是附带的：不影响开关本身，只是换一套更省 token 的提示词。
 
 - insert:
-    - id: chat-lite
-      name: '@local/chat-lite'
+    - id: tools_manager
+      name: 'tools_manager'
       config:
         # 默认模式：chat（聊天模式）或 normal（常规模式）。
         mode: chat

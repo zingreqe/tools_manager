@@ -1,22 +1,22 @@
 /**
- * chat-lite — client half.
+ * tools_manager — client half.
  *
- * Adds a "聊天模式" row to the sidebar and a page that edits the host
- * switches through `GET/POST /chat-lite/settings`: mode (聊天 / 常规) and one
+ * Adds a "工具管理" row to the sidebar and a page that edits the host
+ * switches through `GET/POST /tools_manager/settings`: mode (聊天 / 常规) and one
  * switch per discovered tool — including tools contributed by other plugins.
  * Changing anything re-applies the prompt and the tool restriction to every
  * live session immediately.
  */
 window.__ModuleLoader__.load({
-  id: '@local/chat-lite',
+  id: 'tools_manager',
   factory(require) {
     const React = require('react')
     const h = React.createElement
     const { useCallback, useEffect, useState } = React
 
-    const PANEL_ID = 'chat-lite'
-    const ENDPOINT = '/chat-lite/settings'
-    const EXPLAIN_ENDPOINT = '/chat-lite/explain'
+    const PANEL_ID = 'tools_manager'
+    const ENDPOINT = '/tools_manager/settings'
+    const EXPLAIN_ENDPOINT = '/tools_manager/explain'
 
     const C = {
       text: 'var(--dsw-alias-label-primary, #e8eaed)',
@@ -310,36 +310,11 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { style: { maxWidth: 760, margin: '0 auto', padding: '36px 28px 72px' } },
-          h('h1', { style: { margin: 0, fontSize: 20, fontWeight: 600 } }, '聊天模式'),
+          h('h1', { style: { margin: 0, fontSize: 20, fontWeight: 600 } }, '工具管理'),
           h(
             'p',
             { style: { margin: '8px 0 0', fontSize: 12.5, lineHeight: 1.7, color: C.muted } },
-            '这里的选择立即对当前所有会话生效。聊天模式使用精简提示词并对网络查询逐次征求授权；常规模式保留 DSH 原本的提示词和行为。',
-          ),
-
-          h(
-            Section,
-            { title: '模式', hint: snapshot.busy ? '保存中…' : null },
-            h(
-              'div',
-              { role: 'radiogroup', 'aria-label': '模式', style: { display: 'flex', gap: 12 } },
-              h(ModeCard, {
-                active: chatMode,
-                title: '聊天模式',
-                description: '精简提示词；只保留下面打开的「默认工具」，其他工具默认关闭；网络查询每次都要你批准。',
-                onClick: () => {
-                  if (!snapshot.busy && !chatMode) patch({ mode: 'chat' })
-                },
-              }),
-              h(ModeCard, {
-                active: !chatMode,
-                title: '常规模式',
-                description: '保留 DSH 默认提示词与全部原始行为，不弹网络授权；没单独改过的工具默认全部开启。',
-                onClick: () => {
-                  if (!snapshot.busy && chatMode) patch({ mode: 'normal' })
-                },
-              }),
-            ),
+            '关掉的工具，连声明都不带进上下文。模式和提示词是附带的轻量配置，改完立即对当前所有会话生效。',
           ),
 
           h(
@@ -509,6 +484,31 @@ window.__ModuleLoader__.load({
 
           h(
             Section,
+            { title: '模式', hint: snapshot.busy ? '保存中…' : null },
+            h(
+              'div',
+              { role: 'radiogroup', 'aria-label': '模式', style: { display: 'flex', gap: 12 } },
+              h(ModeCard, {
+                active: chatMode,
+                title: '聊天模式',
+                description: '精简提示词；只保留上面打开的「默认工具」，其他工具默认关闭；网络查询每次都要你批准。',
+                onClick: () => {
+                  if (!snapshot.busy && !chatMode) patch({ mode: 'chat' })
+                },
+              }),
+              h(ModeCard, {
+                active: !chatMode,
+                title: '常规模式',
+                description: '保留 DSH 默认提示词与全部原始行为，不弹网络授权；没单独改过的工具默认全部开启。',
+                onClick: () => {
+                  if (!snapshot.busy && chatMode) patch({ mode: 'normal' })
+                },
+              }),
+            ),
+          ),
+
+          h(
+            Section,
             { title: '系统提示词', hint: chatMode ? '留空则按当前工具自动生成' : '常规模式下不生效' },
             h('textarea', {
               value: draft,
@@ -599,7 +599,7 @@ window.__ModuleLoader__.load({
         )
         ctx.slots.inject('sidebar.panellist', () =>
           ctx.slots.register(
-            { name: 'sidebar.panellist', id: PANEL_ID, order: 30, label: '聊天模式' },
+            { name: 'sidebar.panellist', id: PANEL_ID, order: 30, label: '工具管理' },
             PanelIcon,
           ),
         )

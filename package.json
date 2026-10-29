@@ -1,8 +1,8 @@
 {
-  "name": "@local/chat-lite",
+  "name": "tools_manager",
   "version": "1.0.0",
   "private": true,
-  "description": "Lean chat + machine-status profile: a sidebar page switches between chat mode (short prompt, per-call web approval) and normal mode, with one switch per tool.",
+  "description": "DSH tool manager: one switch per mounted tool (other plugins and MCP included); a lean chat mode with per-call web approval comes as an extra.",
   "type": "module",
   "exports": {
     ".": "./index.js",

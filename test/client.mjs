@@ -32,7 +32,7 @@ const react = {
 await import('../client.js')
 
 assert.ok(loaded, 'client.js must register itself with the module loader')
-assert.equal(loaded.id, '@local/chat-lite', 'module id must equal the package name')
+assert.equal(loaded.id, 'tools_manager', 'module id must equal the package name')
 assert.equal(typeof loaded.factory, 'function')
 
 const module = loaded.factory((name) => {
@@ -64,13 +64,13 @@ assert.deepEqual(injections.sort(), ['main', 'sidebar.panellist'])
 
 const panel = registrations.find((entry) => entry.options.name === 'sidebar.panellist')
 assert.ok(panel, 'must register a sidebar panel entry')
-assert.equal(panel.options.id, 'chat-lite')
-assert.equal(panel.options.label, '聊天模式')
+assert.equal(panel.options.id, 'tools_manager')
+assert.equal(panel.options.label, '工具管理')
 assert.equal(typeof panel.component, 'function')
 
 const main = registrations.find((entry) => entry.options.name === 'main')
 assert.ok(main, 'must register the main page for the same id')
-assert.equal(main.options.key, 'chat-lite', 'the panel id must address the main key')
+assert.equal(main.options.key, 'tools_manager', 'the panel id must address the main key')
 assert.equal(typeof main.component, 'function')
 
 // The icon is a plain component: calling it must produce an element.
@@ -96,7 +96,7 @@ console.log('ok  page hooks run unconditionally')
 // Row expansion and the explain toggle are pure page wiring: assert the module
 // still points at the explain route and renders the two-state button.
 const wired = await readFile(new URL('../client.js', import.meta.url), 'utf8')
-assert.match(wired, /const EXPLAIN_ENDPOINT = '\/chat-lite\/explain'/, 'the page posts to the explain route')
+assert.match(wired, /const EXPLAIN_ENDPOINT = '\/tools_manager\/explain'/, 'the page posts to the explain route')
 assert.match(wired, /'解释中…'/, 'the button shows a busy state')
 assert.match(wired, /'原文'/, 'the button can restore the original text')
 assert.match(wired, /WebkitLineClamp/, 'collapsed descriptions are line-clamped')

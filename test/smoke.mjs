@@ -1,5 +1,5 @@
 /**
- * Standalone smoke test for the chat-lite host plugin.
+ * Standalone smoke test for the tools_manager host plugin.
  *
  * Drives `apply()` against a fake Cordis context and asserts the behaviours
  * the plugin exists for: mode switching, the prompt section, the tool
@@ -8,12 +8,12 @@
  * Run with: node test/smoke.mjs
  */
 import assert from 'node:assert/strict'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply } from '../index.js'
 
-const STATE_FILE = join(mkdtempSync(join(tmpdir(), 'chat-lite-')), 'state.json')
+const STATE_FILE = join(mkdtempSync(join(tmpdir(), 'tools_manager-')), 'state.json')
 
 const TOOL_SCHEMAS = [
   'bash', 'pwsh', 'read', 'write', 'edit', 'glob', 'grep', 'todo_write',
@@ -129,7 +129,7 @@ const next = async () => ({ kind: 'allow' })
   apply(h.ctx, { stateFile: STATE_FILE })
   assert.equal(h.sections.length, 1, 'one prompt section per agent')
   const [section] = h.sections
-  assert.equal(section.name, 'chat-lite:prompt')
+  assert.equal(section.name, 'tools_manager:prompt')
   assert.equal(section.complete, true, 'chat mode must own the whole prompt')
   assert.equal(section.interpolate, false, 'user text must not be interpolated')
   const text = section.text({})
@@ -143,7 +143,7 @@ const next = async () => ({ kind: 'allow' })
   assert.deepEqual(h.restrictions[0].allow, ['bash', 'pwsh', 'read', 'write', 'edit', 'web_search', 'web_fetch'])
   assert.equal(h.warnings.length, 0, `unexpected warnings: ${h.warnings.join(' | ')}`)
   assert.equal(h.routes.length, 2, 'settings + explain routes')
-  assert.deepEqual(h.routes.map((route) => route.path), ['/chat-lite/settings', '/chat-lite/explain'])
+  assert.deepEqual(h.routes.map((route) => route.path), ['/tools_manager/settings', '/tools_manager/explain'])
   console.log('ok  chat mode prompt + tool allowlist')
 }
 
@@ -360,7 +360,7 @@ const next = async () => ({ kind: 'allow' })
 
 // 17. a tool switched off in the state file disappears from prompt and allowlist
 {
-  const file = join(mkdtempSync(join(tmpdir(), 'chat-lite-')), 'state.json')
+  const file = join(mkdtempSync(join(tmpdir(), 'tools_manager-')), 'state.json')
   const first = makeHarness()
   apply(first.ctx, { stateFile: file })
   const gate = first.listeners.get('tools/pre-execute')
@@ -410,7 +410,7 @@ const next = async () => ({ kind: 'allow' })
   assert.equal(h.pendingInjects.length, 1, 'the route waits for the service instead of being dropped')
   h.provide('webServer', { register: (route) => { h.routes.push(route); return () => {} } })
   assert.equal(h.routes.length, 2, 'both routes register as soon as the service appears')
-  assert.deepEqual(h.routes.map((route) => route.path), ['/chat-lite/settings', '/chat-lite/explain'])
+  assert.deepEqual(h.routes.map((route) => route.path), ['/tools_manager/settings', '/tools_manager/explain'])
   assert.equal(h.pendingInjects.length, 0)
   console.log('ok  settings route survives a late webserver service')
 }
@@ -445,11 +445,11 @@ const next = async () => ({ kind: 'allow' })
   console.log('ok  pwsh row explains itself when it cannot mount')
 }
 
-// 21. POST /chat-lite/explain returns the model's Chinese explanation and caches it
+// 21. POST /tools_manager/explain returns the model's Chinese explanation and caches it
 {
   const h = makeHarness({ llmText: '用来读取文件内容，只读，不会改动磁盘上的任何东西。' })
   apply(h.ctx, { stateFile: STATE_FILE })
-  const explain = h.routes.find((route) => route.path === '/chat-lite/explain')
+  const explain = h.routes.find((route) => route.path === '/tools_manager/explain')
   assert.ok(explain !== undefined, 'explain route is registered')
   assert.equal(explain.handler.length, 2, 'handler takes (req, res)')
 
@@ -504,8 +504,8 @@ const next = async () => ({ kind: 'allow' })
     'Use it when you know the text but not the file.',
   ].join('\n')
   const h = makeHarness({ schemas: [{ name: 'grep', description: long, parameters: {} }] })
-  apply(h.ctx, { stateFile: join(mkdtempSync(join(tmpdir(), 'chat-lite-desc-')), 'state.json') })
-  const settings = h.routes.find((route) => route.path === '/chat-lite/settings')
+  apply(h.ctx, { stateFile: join(mkdtempSync(join(tmpdir(), 'tools_manager-desc-')), 'state.json') })
+  const settings = h.routes.find((route) => route.path === '/tools_manager/settings')
   const response = { status: 0, body: '' }
   await settings.handler(
     { method: 'GET', headers: { host: '127.0.0.1:3080' } },
@@ -523,6 +523,35 @@ const next = async () => ({ kind: 'allow' })
   assert.equal(row.description, long, 'the full description travels to the page')
   assert.ok(row.description.split('\n').length === 3, 'line breaks survive')
   console.log('ok  full tool descriptions reach the page so rows can expand')
+}
+
+{
+  // The bundle was renamed from chat-lite; preferences saved under the old
+  // name must survive the upgrade instead of falling back to defaults.
+  const dir = mkdtempSync(join(tmpdir(), 'tools_manager-legacy-'))
+  writeFileSync(join(dir, 'chat-lite.json'), JSON.stringify({ mode: 'normal', tools: { bash: false } }), 'utf8')
+  const stateFile = join(dir, 'tools_manager.json')
+  const h = makeHarness()
+  apply(h.ctx, { stateFile })
+  const settings = h.routes.find((route) => route.path === '/tools_manager/settings')
+  const response = { status: 0, body: '' }
+  await settings.handler(
+    { method: 'GET', headers: { host: '127.0.0.1:3080' } },
+    {
+      writeHead(status) {
+        response.status = status
+      },
+      end(chunk) {
+        response.body += chunk ?? ''
+      },
+    },
+  )
+  const state = JSON.parse(response.body).state
+  assert.equal(state.mode, 'normal', 'the old file still decides the mode')
+  assert.equal(state.tools.find((tool) => tool.name === 'bash').enabled, false, 'old switches carry over')
+  const rewritten = JSON.parse(readFileSync(stateFile, 'utf8'))
+  assert.equal(rewritten.mode, 'normal', 'the old file is copied to the new name')
+  console.log('ok  preferences saved under chat-lite.json survive the rename')
 }
 
 console.log('\nall checks passed')

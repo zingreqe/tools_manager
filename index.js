@@ -1,5 +1,5 @@
 /**
- * chat-lite — a lean host bundle for "chat + machine status" use.
+ * tools_manager — a lean host bundle for "chat + machine status" use.
  *
  * Two modes, switchable from the sidebar page this bundle also ships:
  *  - `chat`   (聊天模式): a short prompt replaces the harness prompt, only the
@@ -9,7 +9,7 @@
  *
  * The tool list is discovered from the live registry, so tools contributed by
  * any other plugin or MCP connection appear in the page too. A switch is a
- * per-tool override stored in `$DSH_HOME/chat-lite.json`:
+ * per-tool override stored in `$DSH_HOME/tools_manager.json`:
  *  - chat mode defaults to the configured `tools.defaultOn` set (lean);
  *  - normal mode defaults to everything on;
  *  - an explicit choice applies in both modes.
@@ -17,19 +17,19 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 /** Section name registered on every agent scope. */
-const PROMPT_SECTION = 'chat-lite:prompt'
+const PROMPT_SECTION = 'tools_manager:prompt'
 
 /** Question id used for the approval card. */
-const QUESTION_ID = 'chat-lite:web-approval'
+const QUESTION_ID = 'tools_manager:web-approval'
 
 /** Route the sidebar page reads and writes. */
-const SETTINGS_ROUTE = '/chat-lite/settings'
+const SETTINGS_ROUTE = '/tools_manager/settings'
 
 /** Route that asks the model to explain one tool in Chinese. */
-const EXPLAIN_ROUTE = '/chat-lite/explain'
+const EXPLAIN_ROUTE = '/tools_manager/explain'
 
 /** How many tool explanations to keep in memory before evicting the oldest. */
 const EXPLAIN_CACHE_LIMIT = 300
@@ -360,17 +360,32 @@ function dshHome() {
 }
 
 function resolveStateFile(config) {
-  return config.stateFile !== '' ? config.stateFile : join(dshHome(), 'chat-lite.json')
+  return config.stateFile !== '' ? config.stateFile : join(dshHome(), 'tools_manager.json')
+}
+
+/** Older releases wrote the same switches to `chat-lite.json`; carry them over. */
+function legacyStateFile(file) {
+  const name = basename(file)
+  if (name !== 'tools_manager.json') return null
+  return join(dirname(file), 'chat-lite.json')
 }
 
 /** Read the persisted switches; an unreadable file means "all defaults". */
 function readPersisted(file, logger) {
-  if (!existsSync(file)) return {}
+  let source = file
+  if (!existsSync(source)) {
+    const legacy = legacyStateFile(file)
+    if (legacy === null || !existsSync(legacy)) return {}
+    source = legacy
+  }
   try {
-    const parsed = JSON.parse(readFileSync(file, 'utf8'))
-    return isPlainObject(parsed) ? parsed : {}
+    const parsed = JSON.parse(readFileSync(source, 'utf8'))
+    if (!isPlainObject(parsed)) return {}
+    // Rewrite under the current name so the old file is not read again.
+    if (source !== file) writePersisted(file, parsed, logger)
+    return parsed
   } catch (error) {
-    logger?.warn?.(`chat-lite: cannot read ${file}: ${errorMessage(error)}`)
+    logger?.warn?.(`tools_manager: cannot read ${source}: ${errorMessage(error)}`)
     return {}
   }
 }
@@ -381,7 +396,7 @@ function writePersisted(file, state, logger) {
     writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
     return true
   } catch (error) {
-    logger?.warn?.(`chat-lite: cannot write ${file}: ${errorMessage(error)}`)
+    logger?.warn?.(`tools_manager: cannot write ${file}: ${errorMessage(error)}`)
     return false
   }
 }
@@ -441,7 +456,7 @@ function isSameOrigin(req) {
   }
 }
 
-export const name = 'chat-lite'
+export const name = 'tools_manager'
 
 export const inject = ['tools', 'systemPrompt', 'agents']
 
@@ -487,7 +502,7 @@ export function apply(ctx, rawConfig) {
           description: typeof schema.description === 'string' ? schema.description : '',
         }))
     } catch (error) {
-      warnOnce(`schemas:${String(agent.id)}`, `chat-lite: cannot read tool schemas for ${String(agent.id)}: ${errorMessage(error)}`)
+      warnOnce(`schemas:${String(agent.id)}`, `tools_manager: cannot read tool schemas for ${String(agent.id)}: ${errorMessage(error)}`)
     }
     discovered.set(agent, entries)
   }
@@ -556,17 +571,17 @@ export function apply(ctx, rawConfig) {
       } catch (error) {
         const restrictable = restrictableFromError(errorMessage(error))
         if (restrictable === undefined) {
-          warnOnce(`restrict:${attempt}`, `chat-lite: tools.restrict() failed: ${errorMessage(error)}`)
+          warnOnce(`restrict:${attempt}`, `tools_manager: tools.restrict() failed: ${errorMessage(error)}`)
           return []
         }
         const blocked = allow.filter((toolName) => !restrictable.has(toolName))
         if (blocked.length === 0) {
-          warnOnce('restrict:failed', `chat-lite: tools.restrict() failed: ${errorMessage(error)}`)
+          warnOnce('restrict:failed', `tools_manager: tools.restrict() failed: ${errorMessage(error)}`)
           return []
         }
         for (const toolName of blocked) {
           locked.add(toolName)
-          warnOnce(`locked:${toolName}`, `chat-lite: tool "${toolName}" cannot be hidden (session-local); it stays available`)
+          warnOnce(`locked:${toolName}`, `tools_manager: tool "${toolName}" cannot be hidden (session-local); it stays available`)
         }
         allow = allow.filter((toolName) => restrictable.has(toolName))
         if (allow.length === 0) return []
@@ -583,7 +598,7 @@ export function apply(ctx, rawConfig) {
       try {
         disposers[index]()
       } catch (error) {
-        ctx.logger.warn(`chat-lite: cleanup failed: ${errorMessage(error)}`)
+        ctx.logger.warn(`tools_manager: cleanup failed: ${errorMessage(error)}`)
       }
     }
   }
@@ -953,14 +968,14 @@ export function apply(ctx, rawConfig) {
   // exists, so the route binds whenever the webserver shows up.
   if (typeof ctx.inject === 'function') {
     ctx.inject(['webServer'], (scope) => {
-      scope.effect(() => bindRoutes(scope.webServer), 'chat-lite: routes')
+      scope.effect(() => bindRoutes(scope.webServer), 'tools_manager: routes')
     })
   } else {
     const webServer = ctx.get('webServer')
     if (webServer === undefined) {
-      ctx.logger.warn('chat-lite: webServer is not available yet; the settings page will not load')
+      ctx.logger.warn('tools_manager: webServer is not available yet; the settings page will not load')
     } else {
-      ctx.effect(() => bindRoutes(webServer), 'chat-lite: routes')
+      ctx.effect(() => bindRoutes(webServer), 'tools_manager: routes')
     }
   }
 
@@ -975,11 +990,11 @@ export function apply(ctx, rawConfig) {
   try {
     for (const agent of ctx.agents.list()) installAgent(agent)
   } catch (error) {
-    ctx.logger.warn(`chat-lite: cannot enumerate live agents: ${errorMessage(error)}`)
+    ctx.logger.warn(`tools_manager: cannot enumerate live agents: ${errorMessage(error)}`)
   }
 
   ctx.effect(() => () => {
     for (const agent of [...agents.keys()]) releaseAgent(agent)
     discovered.clear()
-  }, 'chat-lite: agent registrations')
+  }, 'tools_manager: agent registrations')
 }

@@ -2,7 +2,7 @@
  * End-to-end test of the settings page transport.
  *
  * Mounts the plugin against a fake Cordis context, serves the registered
- * `/chat-lite/settings` route from a real HTTP server, and drives it with
+ * `/tools_manager/settings` route from a real HTTP server, and drives it with
  * `fetch` exactly like the sidebar page does.
  *
  * Run with: node test/http.mjs
@@ -75,7 +75,7 @@ function makeHarness(stateFile) {
   return { ctx, agent, sections, restrictions, routes, schemas, stateFile }
 }
 
-const harness = makeHarness(join(mkdtempSync(join(tmpdir(), 'chat-lite-http-')), 'state.json'))
+const harness = makeHarness(join(mkdtempSync(join(tmpdir(), 'tools_manager-http-')), 'state.json'))
 apply(harness.ctx, { stateFile: harness.stateFile })
 assert.equal(harness.routes.length, 2, 'the plugin must register its settings and explain routes')
 const handlers = new Map(harness.routes.map((route) => [route.path, route.handler]))
@@ -92,8 +92,8 @@ const server = createServer((req, res) => {
 })
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
 const origin = `http://127.0.0.1:${server.address().port}`
-const url = `${origin}/chat-lite/settings`
-const explainUrl = `${origin}/chat-lite/explain`
+const url = `${origin}/tools_manager/settings`
+const explainUrl = `${origin}/tools_manager/explain`
 
 const get = () => fetch(url, { headers: { accept: 'application/json' } })
 const post = (body, headers = {}) =>
