@@ -38,11 +38,21 @@ powershell.exe -NoProfile -Command 'Get-Process | Sort-Object CPU -Descending | 
 
 ## 装
 
+npm 上的包名是 `dsh-tools-manager`：
+
+```text
+plugin_manager install_bundle({ target: "dsh-tools-manager" })
+```
+
+想在本地改就直接装目录：
+
 ```text
 plugin_manager install_bundle({ target: "<这个目录的绝对路径>" })
 ```
 
-bundle 名就是 `tools_manager`。装完重启一次 DSH，`index.js` 和 `client.js` 都只在启动时装载。
+bundle 名是 `dsh-tools-manager`。装完重启一次 DSH，`index.js` 和 `client.js` 都只在启动时装载。
+
+包名之所以不叫 `tools_manager`：npm 说它和已有的 `tools-manager` 太像，不让注册。插件内部的面板 id、路由和状态文件还是 `tools_manager`，所以旧配置不用挪。
 
 ## 存在哪
 

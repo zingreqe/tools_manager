@@ -5,8 +5,8 @@
 # 聊天模式与系统提示词是附带的：不影响开关本身，只是换一套更省 token 的提示词。
 
 - insert:
-    - id: tools_manager
-      name: 'tools_manager'
+    - id: dsh-tools-manager
+      name: 'dsh-tools-manager'
       config:
         # 默认模式：chat（聊天模式）或 normal（常规模式）。
         mode: chat

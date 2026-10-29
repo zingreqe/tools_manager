@@ -32,7 +32,7 @@ const react = {
 await import('../client.js')
 
 assert.ok(loaded, 'client.js must register itself with the module loader')
-assert.equal(loaded.id, 'tools_manager', 'module id must equal the package name')
+assert.equal(loaded.id, 'dsh-tools-manager', 'module id must equal the package name')
 assert.equal(typeof loaded.factory, 'function')
 
 const module = loaded.factory((name) => {

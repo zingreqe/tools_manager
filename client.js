@@ -8,7 +8,7 @@
  * live session immediately.
  */
 window.__ModuleLoader__.load({
-  id: 'tools_manager',
+  id: 'dsh-tools-manager',
   factory(require) {
     const React = require('react')
     const h = React.createElement

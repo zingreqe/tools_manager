@@ -1,9 +1,30 @@
 {
-  "name": "tools_manager",
+  "name": "dsh-tools-manager",
   "version": "1.0.0",
-  "private": true,
   "description": "DSH tool manager: one switch per mounted tool (other plugins and MCP included); a lean chat mode with per-call web approval comes as an extra.",
   "type": "module",
+  "license": "MIT",
+  "author": "jiang_li <2181831629@qq.com>",
+  "homepage": "https://github.com/zingreqe/tools_manager#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zingreqe/tools_manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zingreqe/tools_manager/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "plugin",
+    "tools",
+    "tool-manager",
+    "chat"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -16,8 +37,15 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
+  "scripts": {
+    "test": "node test/smoke.mjs && node test/http.mjs && node test/client.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

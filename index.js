@@ -456,7 +456,7 @@ function isSameOrigin(req) {
   }
 }
 
-export const name = 'tools_manager'
+export const name = 'dsh-tools-manager'
 
 export const inject = ['tools', 'systemPrompt', 'agents']
 
