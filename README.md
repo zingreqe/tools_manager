@@ -179,4 +179,4 @@ node test/client.mjs   # Client：按模块加载器的样子装载 client.js，
 
 ## 许可
 
-未附带许可证文件。若需开源声明，可自行补充 MIT / Apache-2.0 等。
+[MIT](LICENSE)。
