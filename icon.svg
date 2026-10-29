@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="chat-lite">
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#101822"/>
+  <path d="M18 12 H46 A6 6 0 0 1 52 18 V36 A6 6 0 0 1 46 42 H30 L20 50 V42 H18 A6 6 0 0 1 12 36 V18 A6 6 0 0 1 18 12 Z" fill="#5ee0b5"/>
+  <path d="M20 27 H26 L29 21 L33 33 L36 27 H44" fill="none" stroke="#101822" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

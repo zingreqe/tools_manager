@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Chat Lite",
+    "description": "Sidebar page: switch between chat and normal mode and toggle every installed tool, including ones contributed by other plugins; in chat mode each web call asks for approval and understands a natural-language reply"
+  }
+}

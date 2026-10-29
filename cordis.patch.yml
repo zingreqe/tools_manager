@@ -1,0 +1,82 @@
+# chat-lite — 轻量「聊天 + 电脑状态监控」配置。
+#
+# 这个文件提供默认值；模式、工具开关、系统提示词都可以在侧边栏「聊天模式」
+# 页面里改，改动保存在 $DSH_HOME/chat-lite.json，并立即对所有会话生效。
+# 页面里的选择优先于这里；删掉 chat-lite.json 就回到本文件的默认值。
+
+- insert:
+    - id: chat-lite
+      name: '@local/chat-lite'
+      config:
+        # 默认模式：chat（聊天模式）或 normal（常规模式）。
+        mode: chat
+
+        # ---- 系统提示词 ----
+        # text 留空表示按「当前开启的工具」自动生成精简提示词；
+        # 在页面里填了自定义提示词，或在这里写死 text，就优先用它们。
+        prompt:
+          text: ''
+          # 在提示词末尾附一行「你现在可用的工具：…」，随开关变化。
+          toolLine: true
+          # 让模型看不到工作目录、沙箱策略等运行时上下文（更省 token）。
+          suppressRuntimeContext: false
+
+        # ---- 工具默认值 ----
+        # 页面会列出所有已挂载的工具，包括其他插件和 MCP 提供的。
+        # 这里只决定「聊天模式」下默认开启哪些；常规模式默认全部开启；
+        # 在页面里手动开关过的工具会记住你的选择。没装上的名字会被忽略。
+        tools:
+          defaultOn:
+            - bash
+            - pwsh
+            - read
+            - write
+            - edit
+            - web_search
+            - web_fetch
+
+        # ---- 网络工具授权（仅聊天模式）----
+        # 每次 web 工具调用都会弹一张卡片；用户也可以不点按钮，直接打字回答。
+        webApproval:
+          enabled: true
+          tools:
+            - web_search
+            - web_fetch
+          # 除上面列出的名字外，任何以这些前缀开头的工具同样需要授权。
+          prefixes:
+            - web_
+          header: 网络查询授权
+          question: 允许执行 {tool} 吗？
+          # {tool} 是工具名，{args} 是这次调用的参数。
+          detail: |-
+            参数：
+            {args}
+          allowLabel: 允许
+          denyLabel: 拒绝
+          allowDescription: 执行这一次网络查询
+          denyDescription: 不执行，改用本地信息
+          argsMaxChars: 1200
+
+        # ---- 自由文本的意图判定 ----
+        # 用户在卡片里输入的文字，交给一个小模型调用判断是否同意。
+        intent:
+          enabled: true
+          # 留空则沿用当前默认模型（deepseek-account / deepseek-flash）。
+          provider: ''
+          model: ''
+          # 留空用内置的中文判定提示词。
+          system: ''
+          maxTokens: 400
+          timeoutMs: 30000
+
+        # ---- 工具说明的中文解释 ----
+        # 页面里每个工具右边的「解释」按钮会请求一次模型，用中文说明这个工具
+        # 做什么；结果按「工具名 + 原始说明」缓存在内存里，同一个工具不会重复请求。
+        explain:
+          # 留空则沿用当前默认模型。
+          provider: ''
+          model: ''
+          maxTokens: 300
+          timeoutMs: 20000
+          # 解释文本的字数上限，超出会被截断。
+          maxChars: 160
