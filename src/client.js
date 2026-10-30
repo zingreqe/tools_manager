@@ -2,7 +2,7 @@
  * tools_manager — client half.
  *
  * Adds a "工具管理" row to the sidebar and a page that edits the host
- * switches through `GET/POST /tools_manager/settings`: mode (聊天 / 常规) and one
+ * switches through `GET/POST /api/tools_manager.settings` (Connection 准入): mode (聊天 / 常规) and one
  * switch per discovered tool — including tools contributed by other plugins.
  * Changing anything re-applies the prompt and the tool restriction to every
  * live session immediately.
@@ -15,8 +15,8 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useState } = React
 
     const PANEL_ID = 'tools_manager'
-    const ENDPOINT = '/tools_manager/settings'
-    const EXPLAIN_ENDPOINT = '/tools_manager/explain'
+    const ENDPOINT = '/api/tools_manager.settings'
+    const EXPLAIN_ENDPOINT = '/api/tools_manager.explain'
 
     const C = {
       text: 'var(--dsw-alias-label-primary, #e8eaed)',

@@ -96,7 +96,7 @@ console.log('ok  page hooks run unconditionally')
 // Row expansion and the explain toggle are pure page wiring: assert the module
 // still points at the explain route and renders the two-state button.
 const wired = await readFile(new URL('../src/client.js', import.meta.url), 'utf8')
-assert.match(wired, /const EXPLAIN_ENDPOINT = '\/tools_manager\/explain'/, 'the page posts to the explain route')
+assert.match(wired, /const EXPLAIN_ENDPOINT = '\/api\/tools_manager\.explain'/, 'the page posts to the explain route')
 assert.match(wired, /'解释中…'/, 'the button shows a busy state')
 assert.match(wired, /'原文'/, 'the button can restore the original text')
 assert.match(wired, /WebkitLineClamp/, 'collapsed descriptions are line-clamped')

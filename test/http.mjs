@@ -2,8 +2,9 @@
  * End-to-end test of the settings page transport.
  *
  * Mounts the plugin against a fake Cordis context, serves the registered
- * `/tools_manager/settings` route from a real HTTP server, and drives it with
- * `fetch` exactly like the sidebar page does.
+ * `/api/tools_manager.settings` route from a real HTTP server, and drives it
+ * with `fetch` exactly like the sidebar page does. The routes live on the
+ * Connection Fetch registry, so the fake service mirrors `.fetch.register`.
  *
  * Run with: node test/http.mjs
  */
@@ -47,7 +48,7 @@ function makeHarness(stateFile) {
     },
   }
   const services = {
-    webServer: { register: (route) => (routes.push(route), () => {}) },
+    connection: { fetch: { register: (route) => (routes.push(route), () => {}) } },
     agentDefaultModel: { currentSelection: () => ({ provider: 'deepseek-account', model: 'deepseek-flash' }) },
     llm: {
       stream: () =>
@@ -78,22 +79,34 @@ function makeHarness(stateFile) {
 const harness = makeHarness(join(mkdtempSync(join(tmpdir(), 'tools_manager-http-')), 'state.json'))
 apply(harness.ctx, { stateFile: harness.stateFile })
 assert.equal(harness.routes.length, 2, 'the plugin must register its settings and explain routes')
-const handlers = new Map(harness.routes.map((route) => [route.path, route.handler]))
+const byPath = new Map(harness.routes.map((route) => [route.path, route]))
+for (const route of harness.routes) assert.ok(route.path.startsWith('/api/'), 'routes must sit behind Connection admission')
 
-const server = createServer((req, res) => {
+const server = createServer(async (req, res) => {
   const { pathname } = new URL(req.url ?? '/', 'http://127.0.0.1')
-  const handler = handlers.get(pathname)
-  if (handler === undefined) {
+  const route = byPath.get(pathname)
+  if (route === undefined) {
     res.writeHead(404)
     res.end()
     return
   }
-  handler(req, res)
+  if (!route.methods.includes(req.method ?? 'GET')) {
+    res.writeHead(405, { allow: route.methods.join(', ') })
+    res.end()
+    return
+  }
+  const chunks = []
+  for await (const chunk of req) chunks.push(chunk)
+  const init = { method: req.method, headers: req.headers }
+  if (req.method !== 'GET' && req.method !== 'HEAD' && chunks.length > 0) init.body = Buffer.concat(chunks)
+  const response = await route.fetch(new Request(`http://${req.headers.host}${req.url}`, init))
+  res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
+  res.end(Buffer.from(await response.arrayBuffer()))
 })
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
 const origin = `http://127.0.0.1:${server.address().port}`
-const url = `${origin}/tools_manager/settings`
-const explainUrl = `${origin}/tools_manager/explain`
+const url = `${origin}/api/tools_manager.settings`
+const explainUrl = `${origin}/api/tools_manager.explain`
 
 const get = () => fetch(url, { headers: { accept: 'application/json' } })
 const post = (body, headers = {}) =>
@@ -221,13 +234,11 @@ try {
     console.log('ok  rejects non-JSON writes')
   }
 
-  // 11. cross-site writes are refused
+  // 11. the routes only answer under /api, where Connection authenticates
   {
-    const response = await post({ mode: 'normal' }, { origin: 'http://evil.example' })
-    assert.equal(response.status, 403)
-    const payload = await response.json()
-    assert.equal(payload.ok, false)
-    console.log('ok  rejects cross-site writes')
+    const response = await fetch(`${origin}/tools_manager/settings`)
+    assert.equal(response.status, 404, 'the old unauthenticated path no longer exists')
+    console.log('ok  routes live behind Connection admission only')
   }
 
   // 12. unsupported methods are refused

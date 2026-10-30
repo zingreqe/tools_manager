@@ -25,11 +25,16 @@ const PROMPT_SECTION = 'tools_manager:prompt'
 /** Question id used for the approval card. */
 const QUESTION_ID = 'tools_manager:web-approval'
 
-/** Route the sidebar page reads and writes. */
-const SETTINGS_ROUTE = '/tools_manager/settings'
+/**
+ * Route the sidebar page reads and writes. It lives under `/api` so the Host's
+ * Connection service authenticates it before the handler runs: the browser
+ * session cookie (or an API token) must be valid, and the Host/Origin fence
+ * applies first. A plain `webServer` exact route would skip both.
+ */
+const SETTINGS_ROUTE = '/api/tools_manager.settings'
 
 /** Route that asks the model to explain one tool in Chinese. */
-const EXPLAIN_ROUTE = '/tools_manager/explain'
+const EXPLAIN_ROUTE = '/api/tools_manager.explain'
 
 /** How many tool explanations to keep in memory before evicting the oldest. */
 const EXPLAIN_CACHE_LIMIT = 300
@@ -420,40 +425,24 @@ function normalizeState(raw, config) {
   }
 }
 
-function jsonResponse(res, status, payload) {
-  const body = JSON.stringify(payload)
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-    'content-length': Buffer.byteLength(body),
+function jsonResponse(status, payload, headers = {}) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      ...headers,
+    },
   })
-  res.end(body)
 }
 
-async function readJsonBody(req, limit = 128 * 1024) {
-  const chunks = []
-  let size = 0
-  for await (const chunk of req) {
-    size += chunk.length
-    if (size > limit) throw new Error('请求体过大')
-    chunks.push(chunk)
-  }
-  const text = Buffer.concat(chunks).toString('utf8')
+async function readJsonBody(request, limit = 128 * 1024) {
+  const text = await request.text()
+  if (text.length > limit) throw new Error('请求体过大')
   if (text.trim() === '') return {}
   const parsed = JSON.parse(text)
   if (!isPlainObject(parsed)) throw new Error('请求体必须是 JSON 对象')
   return parsed
-}
-
-/** Reject cross-site writes: the page is same-origin, so anything else is not us. */
-function isSameOrigin(req) {
-  const origin = req.headers.origin
-  if (typeof origin !== 'string' || origin === '') return true
-  try {
-    return new URL(origin).host === req.headers.host
-  } catch {
-    return false
-  }
 }
 
 export const name = 'dsh-tools-manager'
@@ -888,94 +877,87 @@ export function apply(ctx, rawConfig) {
     return true
   }
 
-  async function settingsHandler(req, res) {
+  async function settingsHandler(request) {
     try {
-      if (req.method === 'GET' || req.method === 'HEAD') {
+      if (request.method === 'GET' || request.method === 'HEAD') {
         reapplyAll(true)
-        jsonResponse(res, 200, { ok: true, state: describeState() })
-        return
+        return jsonResponse(200, { ok: true, state: describeState() })
       }
-      if (req.method !== 'POST') {
-        res.writeHead(405, { allow: 'GET, POST' })
-        res.end()
-        return
-      }
-      if (!isSameOrigin(req)) {
-        jsonResponse(res, 403, { ok: false, error: '跨站请求被拒绝' })
-        return
-      }
-      const type = req.headers['content-type']
+      const type = request.headers.get('content-type')
       if (typeof type !== 'string' || !type.toLowerCase().startsWith('application/json')) {
-        jsonResponse(res, 415, { ok: false, error: '需要 application/json' })
-        return
+        return jsonResponse(415, { ok: false, error: '需要 application/json' })
       }
-      const body = await readJsonBody(req)
+      const body = await readJsonBody(request)
       const changed = applyPatch(body)
       if (changed) reapplyAll(true)
-      jsonResponse(res, 200, { ok: true, changed, state: describeState() })
+      return jsonResponse(200, { ok: true, changed, state: describeState() })
     } catch (error) {
-      jsonResponse(res, 400, { ok: false, error: errorMessage(error) })
+      return jsonResponse(400, { ok: false, error: errorMessage(error) })
     }
   }
 
-  async function explainHandler(req, res) {
+  async function explainHandler(request) {
     try {
-      if (req.method !== 'POST') {
-        res.writeHead(405, { allow: 'POST' })
-        res.end()
-        return
-      }
-      if (!isSameOrigin(req)) {
-        jsonResponse(res, 403, { ok: false, error: '跨站请求被拒绝' })
-        return
-      }
-      const type = req.headers['content-type']
+      const type = request.headers.get('content-type')
       if (typeof type !== 'string' || !type.toLowerCase().startsWith('application/json')) {
-        jsonResponse(res, 415, { ok: false, error: '需要 application/json' })
-        return
+        return jsonResponse(415, { ok: false, error: '需要 application/json' })
       }
-      const body = await readJsonBody(req)
+      const body = await readJsonBody(request)
       const name = isPlainObject(body) && typeof body.name === 'string' ? body.name.trim() : ''
       const description = isPlainObject(body) && typeof body.description === 'string' ? body.description : ''
       if (name === '' || description.trim() === '') {
-        jsonResponse(res, 400, { ok: false, error: '需要工具名和说明' })
-        return
+        return jsonResponse(400, { ok: false, error: '需要工具名和说明' })
       }
       const outcome = await explainTool(name, description)
       if (typeof outcome.error === 'string') {
-        jsonResponse(res, 502, { ok: false, error: outcome.error })
-        return
+        return jsonResponse(502, { ok: false, error: outcome.error })
       }
-      jsonResponse(res, 200, { ok: true, text: outcome.text })
+      return jsonResponse(200, { ok: true, text: outcome.text })
     } catch (error) {
-      jsonResponse(res, 400, { ok: false, error: errorMessage(error) })
+      return jsonResponse(400, { ok: false, error: errorMessage(error) })
     }
   }
 
-  const bindRoutes = (webServer) => {
-    const offSettings = webServer.register({ kind: 'exact', path: SETTINGS_ROUTE, handler: settingsHandler })
-    const offExplain = webServer.register({ kind: 'exact', path: EXPLAIN_ROUTE, handler: explainHandler })
+  /**
+   * Register both routes on Connection's authenticated Fetch registry rather
+   * than on the bare web server: Connection applies the Host/Origin fence and
+   * requires an authenticated browser session or API token before `fetch` runs.
+   */
+  const bindRoutes = (connection) => {
+    const registered = [
+      connection.fetch.register({
+        path: SETTINGS_ROUTE,
+        methods: ['GET', 'HEAD', 'POST'],
+        requestBody: 'buffered',
+        fetch: settingsHandler,
+      }),
+      connection.fetch.register({
+        path: EXPLAIN_ROUTE,
+        methods: ['POST'],
+        requestBody: 'buffered',
+        fetch: explainHandler,
+      }),
+    ]
     return () => {
-      if (typeof offExplain === 'function') offExplain()
-      if (typeof offSettings === 'function') offSettings()
+      for (const off of registered) if (typeof off === 'function') off()
     }
   }
 
-  // The webserver row waits for its own injected services, so on a cold boot it
-  // can activate after this plugin does. A one-shot ctx.get() lookup would then
-  // leave the page's route unregistered until the plugin was reloaded by hand —
+  // Connection waits for its own injected services, so on a cold boot it can
+  // activate after this plugin does. A one-shot ctx.get() lookup would then
+  // leave the page's routes unregistered until the plugin was reloaded by hand —
   // that is the 404 after a restart. ctx.inject re-enters the moment the service
-  // exists, so the route binds whenever the webserver shows up.
+  // exists, so the routes bind whenever Connection shows up.
   if (typeof ctx.inject === 'function') {
-    ctx.inject(['webServer'], (scope) => {
-      scope.effect(() => bindRoutes(scope.webServer), 'tools_manager: routes')
+    ctx.inject(['connection'], (scope) => {
+      scope.effect(() => bindRoutes(scope.connection), 'tools_manager: routes')
     })
   } else {
-    const webServer = ctx.get('webServer')
-    if (webServer === undefined) {
-      ctx.logger.warn('tools_manager: webServer is not available yet; the settings page will not load')
+    const connection = ctx.get('connection')
+    if (connection === undefined) {
+      ctx.logger.warn('tools_manager: connection is not available yet; the settings page will not load')
     } else {
-      ctx.effect(() => bindRoutes(webServer), 'tools_manager: routes')
+      ctx.effect(() => bindRoutes(connection), 'tools_manager: routes')
     }
   }
 

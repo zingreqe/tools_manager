@@ -20,7 +20,7 @@ const TOOL_SCHEMAS = [
   'present', 'web_search', 'web_fetch', 'subagent', 'workflow',
 ].map((name) => ({ name, description: name, parameters: {} }))
 
-function makeHarness({ answer, llmText = '{"decision":"allow"}', llmThrows, schemas = TOOL_SCHEMAS, webServer = true } = {}) {
+function makeHarness({ answer, llmText = '{"decision":"allow"}', llmThrows, schemas = TOOL_SCHEMAS, connection = true } = {}) {
   const sections = []
   const restrictions = []
   const listeners = new Map()
@@ -51,7 +51,7 @@ function makeHarness({ answer, llmText = '{"decision":"allow"}', llmThrows, sche
 
   const services = {
     agentDefaultModel: { currentSelection: () => ({ provider: 'deepseek-account', model: 'deepseek-flash' }) },
-    ...(webServer ? { webServer: { register: (route) => { routes.push(route); return () => {} } } } : {}),
+    ...(connection ? { connection: { fetch: { register: (route) => { routes.push(route); return () => {} } } } } : {}),
     userQuestions: {
       async ask(request) {
         if (answer === undefined) throw new Error('unexpected ask')
@@ -109,6 +109,19 @@ function makeHarness({ answer, llmText = '{"decision":"allow"}', llmThrows, sche
   return { ctx, agent, sections, restrictions, listeners, teardown, warnings, routes, provide, pendingInjects, llmCalls }
 }
 
+/**
+ * The Host hands Connection's registry a Fetch handler; drive it the same way
+ * the /api bridge does, so the tests never see a raw node request.
+ */
+async function callRoute(route, { method = 'GET', body, contentType = 'application/json', headers = {} } = {}) {
+  const init = { method, headers: { ...headers } }
+  if (contentType !== undefined) init.headers['content-type'] = contentType
+  if (body !== undefined) init.body = typeof body === 'string' ? body : JSON.stringify(body)
+  const response = await route.fetch(new Request(`http://127.0.0.1:3080${route.path}`, init))
+  const text = await response.text()
+  return { status: response.status, payload: text === '' ? undefined : JSON.parse(text) }
+}
+
 function exec(agent, overrides = {}) {
   return {
     callId: 'call-1',
@@ -143,7 +156,7 @@ const next = async () => ({ kind: 'allow' })
   assert.deepEqual(h.restrictions[0].allow, ['bash', 'pwsh', 'read', 'write', 'edit', 'web_search', 'web_fetch'])
   assert.equal(h.warnings.length, 0, `unexpected warnings: ${h.warnings.join(' | ')}`)
   assert.equal(h.routes.length, 2, 'settings + explain routes')
-  assert.deepEqual(h.routes.map((route) => route.path), ['/tools_manager/settings', '/tools_manager/explain'])
+  assert.deepEqual(h.routes.map((route) => route.path), ['/api/tools_manager.settings', '/api/tools_manager.explain'])
   console.log('ok  chat mode prompt + tool allowlist')
 }
 
@@ -404,36 +417,24 @@ const next = async () => ({ kind: 'allow' })
 
 // 19. the settings route binds even when the webserver service appears late
 {
-  const h = makeHarness({ webServer: false })
+  const h = makeHarness({ connection: false })
   apply(h.ctx, { stateFile: STATE_FILE })
-  assert.equal(h.routes.length, 0, 'no route while the webserver is still absent')
+  assert.equal(h.routes.length, 0, 'no route while Connection is still absent')
   assert.equal(h.pendingInjects.length, 1, 'the route waits for the service instead of being dropped')
-  h.provide('webServer', { register: (route) => { h.routes.push(route); return () => {} } })
+  h.provide('connection', { fetch: { register: (route) => { h.routes.push(route); return () => {} } } })
   assert.equal(h.routes.length, 2, 'both routes register as soon as the service appears')
-  assert.deepEqual(h.routes.map((route) => route.path), ['/tools_manager/settings', '/tools_manager/explain'])
+  assert.deepEqual(h.routes.map((route) => route.path), ['/api/tools_manager.settings', '/api/tools_manager.explain'])
   assert.equal(h.pendingInjects.length, 0)
-  console.log('ok  settings route survives a late webserver service')
+  console.log('ok  settings route survives a late Connection service')
 }
 
 // 20. only the pwsh row carries an availability note
 {
   const h = makeHarness()
   apply(h.ctx, { stateFile: STATE_FILE })
-  const response = { status: 0, headers: undefined, body: '' }
-  await h.routes[0].handler(
-    { method: 'GET', headers: {} },
-    {
-      writeHead(status, headers) {
-        response.status = status
-        response.headers = headers
-      },
-      end(chunk) {
-        response.body += chunk ?? ''
-      },
-    },
-  )
-  assert.equal(response.status, 200)
-  const state = JSON.parse(response.body).state
+  const { status, payload } = await callRoute(h.routes[0])
+  assert.equal(status, 200)
+  const state = payload.state
   const byName = new Map(state.tools.map((tool) => [tool.name, tool]))
   assert.ok(byName.has('pwsh'), 'pwsh stays listed so the page can explain it')
   assert.ok('note' in byName.get('pwsh'), 'the pwsh row carries a note slot')
@@ -445,35 +446,16 @@ const next = async () => ({ kind: 'allow' })
   console.log('ok  pwsh row explains itself when it cannot mount')
 }
 
-// 21. POST /tools_manager/explain returns the model's Chinese explanation and caches it
+// 21. POST /api/tools_manager.explain returns the model's Chinese explanation and caches it
 {
   const h = makeHarness({ llmText: '用来读取文件内容，只读，不会改动磁盘上的任何东西。' })
   apply(h.ctx, { stateFile: STATE_FILE })
-  const explain = h.routes.find((route) => route.path === '/tools_manager/explain')
+  const explain = h.routes.find((route) => route.path === '/api/tools_manager.explain')
   assert.ok(explain !== undefined, 'explain route is registered')
-  assert.equal(explain.handler.length, 2, 'handler takes (req, res)')
+  assert.deepEqual(explain.methods, ['POST'], 'explain only accepts POST')
 
-  const call = async (body, headers = { 'content-type': 'application/json' }) => {
-    const response = { status: 0, body: '' }
-    await explain.handler(
-      {
-        method: 'POST',
-        headers: { host: '127.0.0.1:3080', ...headers },
-        [Symbol.asyncIterator]: async function* () {
-          yield Buffer.from(JSON.stringify(body))
-        },
-      },
-      {
-        writeHead(status) {
-          response.status = status
-        },
-        end(chunk) {
-          response.body += chunk ?? ''
-        },
-      },
-    )
-    return { status: response.status, payload: JSON.parse(response.body) }
-  }
+  const call = async (body, contentType = 'application/json') =>
+    callRoute(explain, { method: 'POST', body, contentType })
 
   const first = await call({ name: 'read', description: 'read' })
   assert.equal(first.status, 200)
@@ -505,21 +487,10 @@ const next = async () => ({ kind: 'allow' })
   ].join('\n')
   const h = makeHarness({ schemas: [{ name: 'grep', description: long, parameters: {} }] })
   apply(h.ctx, { stateFile: join(mkdtempSync(join(tmpdir(), 'tools_manager-desc-')), 'state.json') })
-  const settings = h.routes.find((route) => route.path === '/tools_manager/settings')
-  const response = { status: 0, body: '' }
-  await settings.handler(
-    { method: 'GET', headers: { host: '127.0.0.1:3080' } },
-    {
-      writeHead(status) {
-        response.status = status
-      },
-      end(chunk) {
-        response.body += chunk ?? ''
-      },
-    },
-  )
-  assert.equal(response.status, 200)
-  const row = JSON.parse(response.body).state.tools.find((tool) => tool.name === 'grep')
+  const settings = h.routes.find((route) => route.path === '/api/tools_manager.settings')
+  const { status, payload } = await callRoute(settings)
+  assert.equal(status, 200)
+  const row = payload.state.tools.find((tool) => tool.name === 'grep')
   assert.equal(row.description, long, 'the full description travels to the page')
   assert.ok(row.description.split('\n').length === 3, 'line breaks survive')
   console.log('ok  full tool descriptions reach the page so rows can expand')
@@ -533,20 +504,9 @@ const next = async () => ({ kind: 'allow' })
   const stateFile = join(dir, 'tools_manager.json')
   const h = makeHarness()
   apply(h.ctx, { stateFile })
-  const settings = h.routes.find((route) => route.path === '/tools_manager/settings')
-  const response = { status: 0, body: '' }
-  await settings.handler(
-    { method: 'GET', headers: { host: '127.0.0.1:3080' } },
-    {
-      writeHead(status) {
-        response.status = status
-      },
-      end(chunk) {
-        response.body += chunk ?? ''
-      },
-    },
-  )
-  const state = JSON.parse(response.body).state
+  const settings = h.routes.find((route) => route.path === '/api/tools_manager.settings')
+  const { payload } = await callRoute(settings)
+  const state = payload.state
   assert.equal(state.mode, 'normal', 'the old file still decides the mode')
   assert.equal(state.tools.find((tool) => tool.name === 'bash').enabled, false, 'old switches carry over')
   const rewritten = JSON.parse(readFileSync(stateFile, 'utf8'))
