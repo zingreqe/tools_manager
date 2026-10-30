@@ -1,6 +1,6 @@
 {
   "name": "dsh-tools-manager",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "DSH tool manager: one switch per mounted tool (other plugins and MCP included); a lean chat mode with per-call web approval comes as an extra.",
   "type": "module",
   "license": "MIT",
