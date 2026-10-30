@@ -29,7 +29,7 @@ const react = {
   useRef: (initial) => ({ current: initial }),
 }
 
-await import('../client.js')
+await import('../src/client.js')
 
 assert.ok(loaded, 'client.js must register itself with the module loader')
 assert.equal(loaded.id, 'dsh-tools-manager', 'module id must equal the package name')
@@ -81,7 +81,7 @@ assert.ok(icon.children.length >= 2, 'icon must draw both rails and knobs')
 console.log('ok  client module wiring: sidebar entry + main page')
 
 // Static sanity check of the page source: no hooks inside conditionals.
-const source = await import('node:fs').then((fs) => fs.readFileSync(new URL('../client.js', import.meta.url), 'utf8'))
+const source = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/client.js', import.meta.url), 'utf8'))
 const pageStart = source.indexOf('function Page()')
 const pageEnd = source.indexOf('return {\n      inject:', pageStart)
 const page = source.slice(pageStart, pageEnd)
@@ -95,7 +95,7 @@ console.log('ok  page hooks run unconditionally')
 
 // Row expansion and the explain toggle are pure page wiring: assert the module
 // still points at the explain route and renders the two-state button.
-const wired = await readFile(new URL('../client.js', import.meta.url), 'utf8')
+const wired = await readFile(new URL('../src/client.js', import.meta.url), 'utf8')
 assert.match(wired, /const EXPLAIN_ENDPOINT = '\/tools_manager\/explain'/, 'the page posts to the explain route')
 assert.match(wired, /'解释中…'/, 'the button shows a busy state')
 assert.match(wired, /'原文'/, 'the button can restore the original text')

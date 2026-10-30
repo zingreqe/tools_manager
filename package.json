@@ -26,17 +26,17 @@
     "node": ">=22"
   },
   "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
-    "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    ".": "./src/index.js",
+    "./client": "./src/client.js",
+    "./locale/*.json": "./src/locale/*.json",
+    "./icon": "./src/icon.svg"
   },
   "files": [
-    "index.js",
-    "client.js",
-    "cordis.patch.yml",
-    "locale/*.json",
-    "icon.svg",
+    "src/index.js",
+    "src/client.js",
+    "src/cordis.patch.yml",
+    "src/locale/*.json",
+    "src/icon.svg",
     "README.md",
     "LICENSE"
   ],
@@ -48,7 +48,7 @@
   },
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": "./src/cordis.patch.yml"
     },
     "client": {
       "platform": "web",

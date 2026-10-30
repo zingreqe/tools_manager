@@ -12,7 +12,7 @@ import { createServer } from 'node:http'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apply } from '../index.js'
+import { apply } from '../src/index.js'
 
 const CORE = ['bash', 'pwsh', 'read', 'write', 'edit', 'web_search', 'web_fetch']
 
